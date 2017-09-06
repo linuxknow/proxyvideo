@@ -178,7 +178,7 @@ http.createServer(function(request, response){
 
     console.log("Query E:"+query.e+" Query.ri:"+query.ri+" Query.rs:"+query.rs+" Query.h:"+query.h);
   }
-  //Parametros para xvideos
+  //Parametros para flv
   if (query.e && query.ri && query.rs && query.h && ExtensionVideo == ".flv"){
     fs.appendFile('/tmp/url/url.txt', hrefRequestCompleted+"\n", function (err) {
       if (err) throw new Error('Error al escribir datos en el archivo.');;
