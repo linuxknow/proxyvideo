@@ -1,8 +1,9 @@
 
+
 /*
 * proxy.js - A Bash Implementation
 * proxy.js
- * Copyright (C) 2014 linuxknow@gmail.com
+ * Copyright (C) 2017 linuxknow@gmail.com
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -17,33 +18,26 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  */
 
+//  Install npm dependencies first
+//  npm init
+//  npm install --save url@0.10.3
+//  npm install --save http-proxy@1.11.1
 
-
+var httpProxy = require("http-proxy");
 var http = require("http");
-var http_2 = require("http");
-var httpsServer = require('https');
-var httpsClient = require('https');
-var crypto = require('crypto');
+var url = require("url");
+var net = require('net');
 var fs = require('fs');
-var video_flv=-1;
-
 
 try{
   fs.appendFile('/tmp/url/url.txt','', function(err) {
     if (err) throw new Error('Error al escribir realizar append al archivo.');;
-  });  
+  });
 }catch(ex){
   console.log("Ocurrio una exception al abrir el archivo: "+ex.message);
 }
 
 
-process.on('uncaughtException', function(err) {
-    console.log(err);
-});
-
-function callbackRequest(err){
-  console.log("Ocurrio un error con el request async: "+err);
-}
 
 function parseCookies (request) {
     var list = {},
@@ -69,7 +63,6 @@ function findParamInCookie(cookie,param){
     return 1;
   }
 }
-
 
 function generateCookie(cookie,total){
   try{
@@ -105,65 +98,39 @@ function countCookie(cookie){
 
 
 
-http.createServer(function(request, response){
-  console.log('STATUS: ' + response.statusCode);
-  if (request.method == 'GET' ){
-  	console.log("Metodo de recepcion GET");
-  }
-  if (request.method == "POST"){
-  	console.log("Metodo de recepcion POST");
-  }
-  console.log("Url: "+request.url+"\n");
-  testPath = require('path');
-  console.log("Headers: "+request.headers['host']+" Agent: "+request.headers['user-agent']+" Cookie: "+request.headers['cookie']+"\n");
-  var shasum = crypto.createHash('sha1');
-  shasum.update(request.url);
-  var hex_number = shasum.digest('hex');
-  request.headers['user-agent']=hex_number;
+var server = http.createServer(function (req, res) {
+  var urlObj = url.parse(req.url);
+  var target = urlObj.protocol + "//" + urlObj.host;
 
-  console.log("Headers: "+request.headers['host']+" Agent: "+request.headers['user-agent']+" Cookie: "+request.headers['cookie']+" content-type:"+request.headers['content-type']+"\n");
+  console.log("Proxy HTTP request for:", target);
 
-  var cookies = parseCookies(request);
-
-  if (findParamInCookie(cookies,'country_code')==0){
-      cookies['country_code']='CH';
-  }
-  //request.headers['cookie']='country_code=CH';
-  //
-  cookie_new = generateCookie(cookies,countCookie(cookies));
-  request.headers['cookie']=cookie_new;
-  console.log(" Modificado Cookie: "+request.headers['cookie']+"\n");
-  //console.log(cookie_new+"\n");
-  //console.log("Modificado: "+JSON.stringify(cookies)+"\n");
-
-  //cookie_new
-  var url = require("url")
-  ,parsedRequest = url.parse("http://"+request.headers['host'])
-  ,hostnameRequest = parsedRequest.hostname
-  ,searchRequest = parsedRequest.search
-  ,protocolRequest = parsedRequest.protocol
-  ,pathRequest = parsedRequest.pathname
-  ,unionPatchSearch = parsedRequest.path
-  ,portRequest = +parsedRequest.port || 80
-
-  var urlClean = require("url");
-  parseUrlClean = urlClean.parse(request.url,true)
-  ,hrefRequestCompleted = parseUrlClean.href
-  ,pathRequestCompleted = parseUrlClean.pathname
-
-  console.log("URL Clean: "+hrefRequestCompleted+"\n");
-
-  var url_parts = url.parse(request.url, true);
-  var query = url_parts.query
+  //Cambios
+  
+  var urlParse = require("url-parse")
+  , urlLocal = urlParse(req.url,true);
+  var hrefRequestCompleted = urlLocal.href;
+  var pathRequestCompleted = urlLocal.pathname;
+  var query = urlLocal.query || null;
+  var url_string = urlLocal.toString();
+  var search = urlLocal.search || null;
+  var webhost = urlLocal.host;
+  var Path = require("path");
+  var tipoExtension = Path.extname(pathRequestCompleted);
 
   console.log("Search str: "+JSON.stringify(query)+"\n");
 
   console.log("Href str: "+hrefRequestCompleted+"\n");
 
-  console.log("Path url: "+pathRequestCompleted+"\n");
+  console.log("Host: "+webhost+" search: "+search+" tipo extension: "+tipoExtension+"\n");
 
-  //cambios al 17/02/2015 parsea la extension
-  var tipoExt = (testPath.extname(pathRequestCompleted)).split(';');
+
+  if (pathRequestCompleted != null || String(pathRequestCompleted) === "null") {
+   console.log("Path url: "+pathRequestCompleted+"\n");
+  }else{
+   pathRequestCompleted="";
+  }
+
+  var tipoExt = url_string.split(';');
   console.log("tipoExt: "+tipoExt);
   var ExtensionVideo = '';
   if (tipoExt.length>0){
@@ -174,134 +141,120 @@ http.createServer(function(request, response){
   if ( query === null ||  query === "null" || query.length < 1 || JSON.stringify(query) === '{}'){
      console.log("Objeto nulo");
   }else{
-    console.log("Query completa: "+query);
-
+    console.log("Query completa: "+JSON.stringify(query));
     console.log("Query E:"+query.e+" Query.ri:"+query.ri+" Query.rs:"+query.rs+" Query.h:"+query.h);
   }
-  //Parametros para flv
-  if (query.e && query.ri && query.rs && query.h && ExtensionVideo == ".flv"){
-    fs.appendFile('/tmp/url/url.txt', hrefRequestCompleted+"\n", function (err) {
-      if (err) throw new Error('Error al escribir datos en el archivo.');;
-      console.log('Datos guardados');
-    });
-  }
 
-  if (query.e && query.ri && query.rs && query.h && ExtensionVideo == ".mp4"){
-    fs.appendFile('/tmp/url/url.txt', hrefRequestCompleted+"\n", function (err) {
-      if (err) throw new Error('Error al escribir datos en el archivo.');;
-      console.log('Datos guardados');
-    });
-  }
+//Parametros para videos
+   if ( hrefRequestCompleted && tipoExtension == ".flv"){
+     fs.appendFile('/tmp/url/url.txt', hrefRequestCompleted+"\n", function (err) {
+     if (err) throw new Error('Error al escribir datos en el archivo.');;
+       console.log('Datos guardados');
+     });
+   }
 
-  if (query.e && query.ri && query.rs && query.h && ExtensionVideo == ".am4"){
+   if ( hrefRequestCompleted && tipoExtension == ".ts"){
+     fs.appendFile('/tmp/url/url.txt', hrefRequestCompleted+"\n", function (err) {
+     if (err) throw new Error('Error al escribir datos en el archivo.');;
+       console.log('Datos guardados');
+     });
+   }
+
+  if ( hrefRequestCompleted && tipoExtension == ".mp4"){
     fs.appendFile('/tmp/url/url.txt', hrefRequestCompleted+"\n", function (err) {
-      if (err) throw new Error('Error al escribir datos en el archivo.');;
+    if (err) throw new Error('Error al escribir datos en el archivo.');;
       console.log('Datos guardados');
     });
-  }
+   }
+
+  if ( hrefRequestCompleted && tipoExtension == ".am4"){
+    fs.appendFile('/tmp/url/url.txt', hrefRequestCompleted+"\n", function (err) {
+    if (err) throw new Error('Error al escribir datos en el archivo.');;
+      console.log('Datos guardados');
+    });
+   }
 
   //Agregando m3u8
-  if (ExtensionVideo == ".m3u8" && query.e && query.ri && query.rs){
+  if (ExtensionVideo == ".m3u8" && hrefRequestCompleted){
     fs.appendFile('/tmp/url/url.txt', hrefRequestCompleted+"\n", function (err) {
-      if (err) throw new Error('Error al escribir datos en el archivo.');;
+    if (err) throw new Error('Error al escribir datos en el archivo.');;
       console.log('Datos guardados');
     });
   }
 
-
-  var options = {
-    hostname: hostnameRequest,
-    port: portRequest,
-    path: pathRequest+searchRequest,
-    headers: request.headers,
-    method: request.method
-  };
-
-  //var dns = require('dns');
-  //var sigue=0;
-
-  /*
-  try{
-    dns.resolve4(hostname, function (err, addresses) {
-      if (err){
-        sigue=1;
-        //var err = new Error('Error al realizar dns resolve4');
-        //throw err;
-      }else{
-          console.log('addresses: ' + JSON.stringify(addresses));
-          addresses.forEach(function (a) {
-          try{
-              dns.reverse(a, function (err, domains) {
-              if (err) {
-                sigue=1;
-                //var err = new Error('Error al realizar dns reverso');
-                //throw err
-              }else{
-                console.log('reverse for ' + a + ': ' + JSON.stringify(domains));  
-              }
-            });
-          }catch(err){
-            console.log("Error:", err)
-          }
-        });
-      }
+  //http://hentaistream.com
+  if (JSON.stringify(query) && query.mu && query.pu){
+    fs.appendFile('/tmp/url/url.txt', query.mu+"\n", function (err) {
+    if (err) throw new Error('Error al escribir datos en el archivo.');;
+      console.log('Datos guardados');
     });
-  }catch(err){
-    console.log("Dns Error:", err)
   }
-  */
 
-      //var proxy = http_2.createClient(80, request.headers['host']);
-      //
-      
-      var proxy = http_2.createClient(portRequest, hostnameRequest);
+  //fin
 
-      var proxy_request = proxy.request(request.method, request.url, request.headers);
+  var proxy = httpProxy.createProxyServer({});
 
-      proxy_request.addListener('response', function(proxy_response) {
-        try{
-            proxy_response.addListener('data', function(chunk) {
-            response.write(chunk, 'binary');
-          });
-        }catch(ex){
-          console.log("Error al response.write(chunk, 'binary')" + ex);
-          throw new Error('Proxy server error request evento => proxy_request on data!.');
-        }
-        try{
-            proxy_response.addListener('end', function() {
-            response.end();
-          });
-        }catch(ex){
-          console.log("Error al response.end();" + ex);
-          throw new Error('Proxy server error request evento => proxy_request on end!.');
-        }
+  proxy.on("error", function (err, req, res) {
+    console.log("proxy error", err);
+    res.end();
+  });
 
-        try{
-            proxy_response.addListener('error', function(e) {
-          });
-        }catch(ex){
-          console.log("Error al proxy_response.addListener('error', function(e)" + ex);
-          throw new Error('Proxy server error request evento => proxy_request on error!.');
-        }
-        response.writeHead(proxy_response.statusCode, proxy_response.headers);
-        console.log('HEADERS: ' + JSON.stringify(proxy_response.headers));
-      });
+  proxy.web(req, res, {target: target});
+}).listen(8000);  //this is the port your clients will connect to
 
-      proxy_request.on('error', function(e) {
-        console.log('Existe problemas con el request: '+e.message+"\n");
-        throw new Error('Proxy server error request evento => proxy_request on error!.');
-      });
-      
+var regex_hostport = /^([^:]+)(:([0-9]+))?$/;
 
-      request.addListener('data', function(chunk) {
-        proxy_request.write(chunk, 'binary');
-      });
+var getHostPortFromString = function (hostString, defaultPort) {
+  var host = hostString;
+  var port = defaultPort;
 
-      request.addListener('end', function() {
-        proxy_request.end();
-      });
-  //response.writeHead(200, {"Content-Type": "text/html"});
-  //response.write("Hello World");
-  //response.end();
-  
-}).listen(8000);
+  var result = regex_hostport.exec(hostString);
+  if (result != null) {
+    host = result[1];
+    if (result[2] != null) {
+      port = result[3];
+    }
+  }
+
+  return ( [host, port] );
+};
+
+server.addListener('connect', function (req, socket, bodyhead) {
+  var hostPort = getHostPortFromString(req.url, 443);
+  var hostDomain = hostPort[0];
+  var port = parseInt(hostPort[1]);
+  console.log("Proxying HTTPS request for:", hostDomain, port);
+
+  var proxySocket = new net.Socket();
+  proxySocket.connect(port, hostDomain, function () {
+      proxySocket.write(bodyhead);
+      socket.write("HTTP/" + req.httpVersion + " 200 Connection established\r\n\r\n");
+    }
+  );
+
+  proxySocket.on('data', function (chunk) {
+    socket.write(chunk);
+  });
+
+  proxySocket.on('end', function () {
+    socket.end();
+  });
+
+  proxySocket.on('error', function () {
+    socket.write("HTTP/" + req.httpVersion + " 500 Connection error\r\n\r\n");
+    socket.end();
+  });
+
+  socket.on('data', function (chunk) {
+    proxySocket.write(chunk);
+  });
+
+  socket.on('end', function () {
+    proxySocket.end();
+  });
+
+  socket.on('error', function () {
+    proxySocket.end();
+  });
+
+});
